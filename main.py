@@ -24,33 +24,39 @@ def get_all_fixtures():
     all_fixtures_list = list()
     for key in DATABASE["sports"].distinct('key'):
         for region in REGIONS:
-            fixtures_response_loaded = json.loads(requests.get('https://api.the-odds-api.com/v3/sports', params={
-                'api_key': API_KEY,
-                'sport' : key,
-                'region': region
-            }))
+            fixtures_response_loaded = json.loads(
+                requests.get('https://api.the-odds-api.com/v3/odds', params={
+                    'api_key': API_KEY,
+                    'sport' : key,
+                    'region': region,
+                    'mkt': 'h2h'
+            }).text)
             if fixtures_response_loaded['success']:
                 all_fixtures_list.append(fixtures_response_loaded['data'])
             else:
                 print("FAILED",
                     "Failed request to get fixtures: ",
                     fixtures_response_loaded['msg'])
+                exit
     return all_fixtures_list
 
 def get_all_live_fixtures(): #performs 30 queries at the moment but the API trial limit is 500 queries per month so be careful testing
     live_fixtures_list = list()
     for region in REGIONS:
-        fixtures_response_loaded = json.loads(requests.get('https://api.the-odds-api.com/v3/sports', params={
-            'api_key': API_KEY,
-            'sport' : 'upcoming',
-            'region': region
-        }))
+        fixtures_response_loaded = json.loads(
+            requests.get('https://api.the-odds-api.com/v3/odds', params={
+                'api_key': API_KEY,
+                'sport' : 'upcoming',
+                'region': region,
+                'mkt': 'h2h'
+        }).text)
         if fixtures_response_loaded['success']:
-            live_fixtures_list.append(fixtures_response_loaded['data'])
+            live_fixtures_list.extend(fixtures_response_loaded['data'])
         else:
             print("FAILED",
                   "Failed request to get fixtures: ",
                   fixtures_response_loaded['msg'])
+            exit
     return live_fixtures_list
     
 def store_all_sports(sports_data):
@@ -64,7 +70,11 @@ def store_all_sports(sports_data):
     return True
 
 def store_all_fixtures(fixtures_all_json, fixtures_live_json): #only stores all not in play matches
-    upcoming_fixtures = list(set(fixtures_all_json) - fixtures_live_json)
+    upcoming_fixtures = list(
+        set(fixtures_all_json) 
+        - 
+        set(fixtures_live_json)
+        )
     for item in upcoming_fixtures:
         DATABASE["upcoming_fixtures"].insert_one({
             "_id" : item['id'],
@@ -85,21 +95,12 @@ def delayed_update(delay):
         print("Getting all fixtures from query...",
                end="")
         fixtures_all_json = get_all_fixtures()
-        if fixtures_all_json['success']:
-            print("SUCCESS")
-        else:
-            exit #printing handled in function so the failing query can log their message
+        print("SUCCESS") #other printing handled in function so the failing query can log their message
         
         print("Getting live fixtures from query...",
                end="")
         fixtures_live_json = get_all_live_fixtures()
-        if fixtures_live_json['success']:
-            print("SUCCESS")
-        else:
-            print("FAILED",
-                "Failed request to get live fixtures: ",
-                fixtures_live_json['msg'])
-            exit
+        print("SUCCESS") #other printing handled in function so the failing query can log their message
         
         print("Storing fixtures in database...",
                end="")
@@ -149,7 +150,7 @@ def main():
               "Failed to store sports in database.")
         exit
 
-    print("Starting regular updates every " ++ DELAY ++ " seconds...")
+    print("Starting regular updates every " + str(DELAY) + " seconds...")
     delayed_update(DELAY)
 
 if __name__ == "__main__":
