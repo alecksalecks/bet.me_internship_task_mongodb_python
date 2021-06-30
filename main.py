@@ -4,12 +4,14 @@
 import json
 import pymongo
 import requests
+import time
 
 API_KEY
 CONNECTION_STR = input("Enter your database connection string:") #e.g. mongodb://localhost:27017/
 DATABASE_NAME = "bet.me.developer.task.database"
 DATABASE
-REGIONS = ['au','uk','eu','us']
+REGIONS = ['uk'] #extensibility: ['au','uk','eu','us']
+DELAY = 3600 #1 hour delay
 
 def establish_db_connection():
     try:
@@ -42,7 +44,7 @@ def get_all_fixtures():
                     fixtures_response_loaded['msg'])
     return all_fixtures_list
 
-def get_all_live_fixtures(): #performs 120 queries at the moment... API limit of 500 queries per month
+def get_all_live_fixtures(): #performs 30 queries at the moment but the API trial limit is 500 queries per month so be careful testing
     live_fixtures_list = list()
     for region in REGIONS:
         fixtures_response_loaded = json.loads(requests.get('https://api.the-odds-api.com/v3/sports', params={
@@ -71,10 +73,42 @@ def store_all_fixtures(fixtures_all_json, fixtures_live_json): #only stores all 
     #store all top level fields EXCEPT sites, for sites grab the first h2h odds
     return True
 
+def delayed_update(delay):
+    while True:
+        print("Getting all fixtures from query...",
+               end="")
+        fixtures_all_json = get_all_fixtures()
+        if fixtures_all_json['success']:
+            print("SUCCESS")
+        else:
+            exit #printing handled in function so the failing query can log their message
+        
+        print("Getting live fixtures from query...",
+               end="")
+        fixtures_live_json = get_all_live_fixtures()
+        if fixtures_live_json['success']:
+            print("SUCCESS")
+        else:
+            print("FAILED",
+                "Failed request to get live fixtures: ",
+                fixtures_live_json['msg'])
+            exit
+        
+        print("Storing fixtures in database...",
+               end="")
+        if store_all_fixtures(fixtures_all_json, fixtures_live_json):
+            print("SUCCESS")
+        else:
+            print("FAILED",
+                "Failed to store fixtures in database.")
+            exit
+        time.sleep(delay)
+
+
 def main():
     print("Starting...",
           "Establishing database connection... ", 
-          end="")
+           end="")
     if (establish_db_connection):
         print("SUCCESS")
     else:
@@ -105,33 +139,8 @@ def main():
               "Failed to store sports in database.")
         exit
 
-    print("Getting all fixtures from query...",
-          end="")
-    fixtures_all_json = get_all_fixtures()
-    if fixtures_all_json['success']:
-        print("SUCCESS")
-    else:
-        exit #printing handled in function so the failing query can log their message
-
-    print("Getting live fixtures from query...",
-          end="")
-    fixtures_live_json = get_all_live_fixtures()
-    if fixtures_live_json['success']:
-        print("SUCCESS")
-    else:
-        print("FAILED",
-              "Failed request to get live fixtures: ",
-              fixtures_live_json['msg'])
-        exit
-    
-    print("Storing fixtures in database...",
-           end="")
-    if store_all_fixtures(fixtures_all_json, fixtures_live_json):
-        print("SUCCESS")
-    else:
-        print("FAILED",
-              "Failed to store fixtures in database.")
-        exit
+    print("Starting regular updates...")
+    delayed_update(DELAY)
 
 if __name__ == "__main__":
     main()
