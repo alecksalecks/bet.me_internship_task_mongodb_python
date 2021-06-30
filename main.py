@@ -61,19 +61,33 @@ def get_all_live_fixtures(): #performs 30 queries at the moment but the API tria
     return live_fixtures_list
     
 def store_all_sports(sports_data):
-    sports = list()
     for item in sports_data:
-        sports.add({"key" : item['key'], "group" : item['group'], "details" : item['details'], "title" : item['title']})
-    DATABASE["sports"].insert_many(sports)
+        DATABASE["sports"].insert_one({
+            "key" : item['key'],
+            "group" : item['group'],
+            "details" : item['details'],
+            "title" : item['title']
+        })
     return True
 
 def store_all_fixtures(fixtures_all_json, fixtures_live_json): #only stores all not in play matches
-    #filter live fixtures out from all fixtures
-    #store remaining
-    #store all top level fields EXCEPT sites, for sites grab the first h2h odds
+    upcoming_fixtures = list(set(fixtures_all_json) - fixtures_live_json)
+    for item in upcoming_fixtures:
+        DATABASE["upcoming_fixtures"].insert_one({
+            "id" : item['id'],
+            "sport_key" : item['sport_key'],
+            "sport_nice" : item['sport_nice'],
+            "team_0" : item['teams']['0'],
+            "team_1" : item['teams']['1'],
+            "commence_time" : item['commence_time'],
+            "home_team" : item['home_team'],
+            "fst_h2h_0" : item['sites']['0']['odds']['h2h']['0'], #get first h2h odds for this exercise, could get an average or store all of the h2h odds instead
+            "fst_h2h_1" : item['sites']['0']['odds']['h2h']['1']
+        })
     return True
 
 def delayed_update(delay):
+    print("Performing initial update... ")
     while True:
         print("Getting all fixtures from query...",
                end="")
@@ -102,7 +116,10 @@ def delayed_update(delay):
             print("FAILED",
                 "Failed to store fixtures in database.")
             exit
+
+        print("Sleeping until scheduled update... ")
         time.sleep(delay)
+        print("Performing scheduled update... ")
 
 
 def main():
@@ -139,7 +156,7 @@ def main():
               "Failed to store sports in database.")
         exit
 
-    print("Starting regular updates...")
+    print("Starting regular updates every " ++ DELAY ++ " seconds...")
     delayed_update(DELAY)
 
 if __name__ == "__main__":
