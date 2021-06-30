@@ -5,21 +5,14 @@ import json
 import pymongo
 import requests
 import time
+import os
 
-API_KEY
+#API_KEY
 CONNECTION_STR = input("Enter your database connection string:") #e.g. mongodb://localhost:27017/
-DATABASE_NAME = "bet.me.developer.task.database"
-DATABASE
+DATABASE_NAME = "bet_me_developer_task_database_azsb"
+#DATABASE
 REGIONS = ['uk'] #extensibility: ['au','uk','eu','us']
 DELAY = 3600 #1 hour delay
-
-def establish_db_connection():
-    try:
-        global DATABASE
-        DATABASE = pymongo.MongoClient(CONNECTION_STR)[DATABASE_NAME]
-        return True
-    except pymongo.errors.ConnectionFailure:
-        return False
 
 def get_all_sports():
     sports_response = requests.get('https://api.the-odds-api.com/v3/sports', params={
@@ -74,7 +67,7 @@ def store_all_fixtures(fixtures_all_json, fixtures_live_json): #only stores all 
     upcoming_fixtures = list(set(fixtures_all_json) - fixtures_live_json)
     for item in upcoming_fixtures:
         DATABASE["upcoming_fixtures"].insert_one({
-            "id" : item['id'],
+            "_id" : item['id'],
             "sport_key" : item['sport_key'],
             "sport_nice" : item['sport_nice'],
             "team_0" : item['teams']['0'],
@@ -123,15 +116,15 @@ def delayed_update(delay):
 
 
 def main():
-    print("Starting...",
-          "Establishing database connection... ", 
+    print("Starting App...")
+
+    print("Establishing database connection... ", 
            end="")
-    if (establish_db_connection):
-        print("SUCCESS")
-    else:
-        print("FAILED",
-              "Failed to establish database connection.")
-        exit
+    global CLIENT
+    CLIENT = pymongo.MongoClient(CONNECTION_STR) #error throws
+    global DATABASE
+    DATABASE = CLIENT[DATABASE_NAME] 
+    print("SUCCESS")
 
     global API_KEY 
     API_KEY = input("Enter your odds-api key: ")
